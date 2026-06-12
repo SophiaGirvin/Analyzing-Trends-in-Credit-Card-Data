@@ -1,0 +1,310 @@
+---
+title: "Group Project Code - STT 180"
+author: "Keira Wesley, Nora Fraley, Samhita Kolluri, Tanvi Gadiraju, Varnika Mukku, Sophia Girvin"
+date: "2026-04-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r cars}
+library(ISLR)
+library(tidyverse)
+library(ggplot2)
+library(infer)
+```
+
+
+```{r}
+head(Credit)
+```
+
+
+```{r}
+Credit <- Credit %>% 
+  mutate(Utilization = Balance / Limit, Gender_new = trimws(Gender)) %>% 
+  select(-Gender)
+
+head(Credit)
+```
+
+
+```{r}
+# evaluating each variable's correlation with credit limit
+
+age_limit <- Credit %>% # age
+  ggplot(aes(x = Age, y = Limit)) +  geom_point()
+
+income_limit <- Credit %>% # income
+  ggplot(aes(x = Income, y = Limit)) + geom_point()
+
+rating_limit <- Credit %>% # credit score
+  ggplot(aes(x = Rating, y = Limit)) + geom_point()
+
+cards_limit <- Credit %>% # number of cards owned
+  ggplot(aes(x = factor(Cards), y = Limit)) + geom_boxplot(fill = "lightblue")
+
+gender_limit <- Credit %>% # gender
+  ggplot(aes(x = factor(Gender_new), y = Limit)) + geom_boxplot(fill = "lightblue")
+
+ethnicity_limit <- Credit %>% # ethnicity
+  ggplot(aes(x = factor(Ethnicity), y = Limit)) + geom_boxplot(fill = "lightblue")
+
+married_limit <- Credit %>% # marital status
+  ggplot(aes(x = factor(Married), y = Limit)) + geom_boxplot(fill = "lightblue")
+
+student_limit <- Credit %>% # student status
+  ggplot(aes(x = factor(Student), y = Limit)) + geom_boxplot(fill = "lightblue")
+```
+
+
+```{r}
+# plotting each variable's relationship to limit
+
+age_limit
+
+cards_limit
+
+ethnicity_limit
+
+gender_limit
+
+income_limit
+
+married_limit
+
+rating_limit
+
+student_limit
+```
+
+```{r}
+# correlations for numerical variables, categorical ones had no apparent relationship to limit
+
+age_limit_corr <- with(Credit, cor(Age, Limit, use = "complete.obs"))  ## corr = 0.1009
+income_limit_corr <- with(Credit, cor(Income, Limit, use = "complete.obs"))  # corr = 0.7921
+rating_limit_corr <- with(Credit, cor(Rating, Limit, use = "complete.obs"))  # corr = 0.9969
+
+age_limit_corr
+
+income_limit_corr
+
+rating_limit_corr
+```
+
+
+```{r}
+# multiple regression equation with most highly correlated variables
+
+multiple_fit <- lm(Limit ~ Rating + Income, data = Credit)
+
+multiple_fit %>% 
+  broom::tidy()
+
+multiple_fit %>% 
+  broom::glance()
+```
+
+```{r}
+# plotting this equation and residuals
+
+aug_multi <- augment(multiple_fit)
+
+aug_multi_plot <- aug_multi %>% 
+  ggplot(aes(x = .fitted, y = Limit)) + geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "red") + theme_minimal() +
+  labs(title = "Predicted vs. Actual Credit Limit", x = "Predicted Limit", y = "Actual Limit")
+
+multi_residual_plot <- aug_multi %>% 
+  ggplot(aes(x = .fitted, y = .resid)) + geom_point(alpha = 0.6) + 
+  geom_hline(yintercept = 0, color = "red") + theme_minimal() +
+  labs(title = "Residuals vs. Fitted Values", x = "Fitted Values", y = "Residuals")
+
+aug_multi_plot
+
+multi_residual_plot
+```
+
+
+```{r}
+# testing each variable's importance in predicting limit
+
+rating_fit <- lm(Limit ~ Rating, data = Credit)
+
+rating_fit %>% 
+  broom::tidy()
+
+rating_fit %>% 
+  broom::glance()
+
+income_fit <- lm(Limit ~ Income, data = Credit)
+
+income_fit %>% 
+  broom::tidy()
+
+income_fit %>% 
+  broom::glance()
+```
+
+```{r}
+# student vs. non-student utilization means
+
+Credit %>% 
+  filter(Student == "Yes") %>% 
+  summarise(mean_utilization_student = mean(Utilization))
+
+Credit %>% 
+  filter(Student == "No") %>% 
+  summarise(mean_utilization_nonstudent = mean(Utilization))
+```
+
+
+```{r}
+# utilization distributions 
+
+# student
+students_dist <- Credit %>% 
+  filter(Student == "Yes")
+
+students_dist %>% 
+  ggplot(aes(x = Utilization)) + 
+  geom_histogram(bins = 20, colour = "grey", fill = "lightblue") +
+  labs(x = "Credit Card Utilization", y = "Count", 
+       title = "Distribution of students' credit card utilization") + 
+  geom_vline(aes(xintercept = 0.1716), colour = "blue", linewidth = 1) + 
+  annotate("text", x = 0.1716, y = Inf, label = "Mean utilization", colour = "black", vjust = 2)
+
+# non-student
+nonstudent_dist <- Credit %>% 
+  filter(Student == "No")
+
+nonstudent_dist %>% 
+  ggplot(aes(x = Utilization)) + 
+  geom_histogram(bins = 20, colour = "grey", fill = "lightblue") +
+  labs(x = "Credit Card Utilization", y = "Count", 
+       title = "Distribution of non-students' credit card utilization") + 
+  geom_vline(aes(xintercept = 0.0805), colour = "blue", linewidth = 1) + 
+  annotate("text", x = 0.0805, y = Inf, label = "Mean utilization", colour = "black", vjust = 2)
+```
+
+
+```{r}
+# two sample t-test for difference in utilization means
+
+student <- students_dist %>% 
+  pull(Utilization)
+
+non_student <- nonstudent_dist %>% 
+  pull(Utilization)
+
+t.test(student, non_student, data = Credit, alternative = "greater", mu = 0)
+```
+
+```{r}
+# credit score means for students and non-students
+
+Credit %>% 
+  filter(Student == "Yes") %>% 
+  summarise(mean_rating_student = mean(Rating))
+
+Credit %>% 
+  filter(Student == "No") %>% 
+  summarise(mean_rating_nonstudent = mean(Rating))
+```
+
+```{r}
+# credit score distributions 
+
+# student
+students_dist_rating <- Credit %>% 
+  filter(Student == "Yes")
+
+students_dist_rating %>% 
+  ggplot(aes(x = Rating)) + 
+  geom_histogram(bins = 25, colour = "grey", fill = "lightblue") + 
+  labs(x = "Credit Score", y = "Count", 
+       title = "Distribution of students' credit scores") + 
+  geom_vline(aes(xintercept = 354), colour = "blue", linewidth = 1) + 
+  annotate("text", x = 354, y = Inf, label = "Mean credit score", colour = "black", vjust = 2)
+
+# non-student
+nonstudent_dist_rating <- Credit %>% 
+  filter(Student == "No")
+
+nonstudent_dist_rating %>% 
+  ggplot(aes(x = Rating)) + 
+  geom_histogram(bins = 25, colour = "grey", fill = "lightblue") +
+  labs(x = "Credit Score", y = "Count", 
+       title = "Distribution of non-students' credit scores") + 
+  geom_vline(aes(xintercept = 355.0444), colour = "blue", linewidth = 1) + 
+  annotate("text", x = 355.0444, y = Inf, label = "Mean credit score", 
+           colour = "black", vjust = 2)
+```
+
+```{r}
+# two sample t-test for difference in credit score means
+student_score <- students_dist_rating %>% 
+  pull(Rating)
+
+non_student_score <- nonstudent_dist_rating %>% 
+  pull(Rating)
+
+t.test(student_score, non_student_score, data = Credit, alternative = "less", mu = 0)
+```
+
+```{r}
+# bootstrap distribution for difference in means -- married people
+
+married_dist <- Credit %>%
+  specify(Limit ~ Married) %>%
+  generate(reps = 10000, type = "bootstrap") %>%
+  calculate(stat = "diff in means", order = c("Yes", "No"))
+
+married_dist %>% 
+  ggplot(aes(x = stat)) + geom_histogram(bins = 25, colour = "black", fill = "lightpink") +
+  labs(x = "Average Credit Limit", y = "Count", 
+       title = "Bootstrap distribution of difference in mean credit limit (unmarried vs. married)", 
+       caption = "10,000 bootstrap sampling means")
+```
+
+```{r}
+# confidence interval
+
+married_interval <- married_dist %>% 
+  summarise(lower95 = quantile(stat, probs = 0.025),
+            upper95 = quantile(stat, probs = 0.975))
+married_interval
+```
+
+```{r}
+# married vs unmarried credit score distribution
+
+married_dist_rating <- Credit %>% 
+  filter(Married == "Yes")
+
+married_dist_rating %>% 
+  ggplot(aes(x = Rating)) + 
+  geom_histogram(bins = 25, colour = "black", fill = "lightblue") + 
+  labs(x = "Credit Score", y = "Count", 
+       title = "Distribution of married individuals' credit scores")
+
+unmarried_dist_rating <- Credit %>% 
+  filter(Married == "No")
+
+unmarried_dist_rating %>% 
+  ggplot(aes(x = Rating)) + 
+  geom_histogram(bins = 25, colour = "black", fill = "lightblue") +
+  labs(x = "Credit Score", y = "Count", 
+       title = "Distribution of unmarried individuals' credit scores")
+```
+
+```{r}
+# Chi-square test for independence -- check for a relationship between marital status and credit score
+
+Credit %>% 
+  with(table(Married, Rating)) %>% 
+  chisq.test()
+```
